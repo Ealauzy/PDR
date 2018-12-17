@@ -1,0 +1,4 @@
+Projet Données Reparties :
+Rendu Provisoire V0
+Partie 1 : HDFS
+ALAUZY Estelle RONGIER Chloé DAVIN Marie
