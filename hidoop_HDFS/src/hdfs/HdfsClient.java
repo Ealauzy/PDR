@@ -1,5 +1,3 @@
-/* une PROPOSITION de squelette, incomplète et adaptable... */
-
 package hdfs;
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -7,6 +5,7 @@ import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.ArrayList;
 
+import config.Project;
 import formats.Commande;
 import formats.Format;
 import formats.Format1;
@@ -19,27 +18,48 @@ import formats.Format.Type;
 public class HdfsClient {
 
 	//Taille d'un fragment (= nombre de kv max dans un fragment)
-	private static int n = 3 ;
+	private static int taille_frag = 3 ;
 	
 	//Adresse et noms des serveurs
-	private static String hosts[] = {"localhost", "localhost", "localhost"};
-	private static int ports[] = {8080, 8081, 8082};
-	private static int nb_server = 3;
+	//private static String hosts[] = Project.HOSTS;
+	//private static int ports[] = Project.PORTS;
+	//private static int nb_servers = Project.NB_SERVERS;
+	
 	
     private static void usage() {
         System.out.println("Usage: java HdfsClient read <file>");
         System.out.println("Usage: java HdfsClient write <line|kv> <file>");
         System.out.println("Usage: java HdfsClient delete <file>");
     }
+    
+    private static Format1 CreerFormat (String fname, Format.Type fmt) throws FormatNonConformeException{
+    	Format1 fichier = null;
+    	
+		//Créer format selon le type fmt indiqué
+    	switch (fmt){
+    	case KV :
+    		fichier = new KVFormat(fname);
+    		break;
+    	case LINE :
+    		fichier = new LineFormat(fname);
+    		break;
+    	default :
+    		throw new FormatNonConformeException();
+    	}
+    	
+    	return fichier;
+    }
+    
+    
 	
     public static void HdfsDelete(String hdfsFname) {
     	
     	try {
     		
-    		for (int id_server=0; id_server<nb_server; id_server++) {
+    		for (int id_server=0; id_server<Project.NB_SERVERS; id_server++) {
     	
     			// Ouverture connexion au serveur numéro id_server
-    			Socket s = new Socket(hosts[id_server], ports[id_server]);
+    			Socket s = new Socket(Project.HOSTS[id_server], Project.PORTS[id_server]);
 			
     			ObjectOutputStream oos = new ObjectOutputStream(s.getOutputStream());
     			ObjectInputStream ois = new ObjectInputStream(s.getInputStream());
@@ -51,7 +71,6 @@ public class HdfsClient {
         		ois.close();
     			oos.close();
     			s.close();
-
     		}
     		
 		} catch (IOException e) {
@@ -64,61 +83,54 @@ public class HdfsClient {
     public static void HdfsWrite(Format.Type fmt, String localFSSourceFname, 
      int repFactor) {
     	
-    	//faire un switch case selon le type ? et faire une méthode du reste du code
+    	//Initialisation des variables utilisées
     	Format1 in = null;
-    	switch (fmt){
-    	case KV :
-    		//Créer format selon le type fmt indiqué
-    		in = new KVFormat(localFSSourceFname);
-    		break;
-    	case LINE :
-    		//Créer format selon le type fmt indiqué
-    		in = new LineFormat(localFSSourceFname);
-    		break;
-    	default :
-    		System.out.println("Format non reconnu.");
-    		return;
-    	}
+    	int frag_num = 0;
+		ArrayList<KV> fragment = new ArrayList<KV>();   // Créer le fragment = une liste de kv (type KV)
+    	
+    	//Construction du fichier au format souhaité
+		try {
+			in = CreerFormat(localFSSourceFname, fmt);
+		} catch (FormatNonConformeException e) {
+			e.printStackTrace();
+			return;
+		}
+		
     	// Ouverture du fichier
     	in.open(Format.OpenMode.R);
+
     	// Lecture du fichier : lecture du premier kv
     	KV kv = in.read();
-    	
-  		// Créer le fragment = une liste de kv (type KV)
-		ArrayList<KV> fragment = new ArrayList<KV>();
-		
-    	// Tant que la lecture est possible, cad qu'il y a quelque chose à lire alors construire les fragments
-    	
-		int id_server = 0; 
-    	int i = 0;
+
+    	// Tant que la lecture est possible, cad qu'il y a quelque chose à lire 
+		// alors construire les fragments et les envoyer
 		
     	while (kv.getV() != null) {
     		fragment.add(kv);
-
-    		if (fragment.size() == n) {
-    			sendFragment(fragment, fmt, localFSSourceFname, i, id_server, Commande.CMD_WRITE);
-
-        		if (id_server <nb_server-1) { id_server++;}
-        		else {id_server = 0;}
-        		i++;
+    		
+    		if (fragment.size() == taille_frag) {
+    			sendFragment(fragment, fmt, localFSSourceFname, frag_num, Commande.CMD_WRITE);
+        		frag_num++;
     		}
 
     		//Lecture des kv suivants
     		kv = in.read();
     	}
 		if (fragment.size() > 0) {
-			sendFragment(fragment, fmt, localFSSourceFname, i, id_server, Commande.CMD_WRITE);
+			sendFragment(fragment, fmt, localFSSourceFname, frag_num, Commande.CMD_WRITE);
 		}
 		
 		//Fermeture du fichier une fois lecture finie
 		in.close();
     }
 
-    public static void sendFragment(ArrayList<KV> fragment, Format.Type fmt, String localFSSourceFnamenew, int i, int id_server, Commande command) {
+    
+   
+    public static void sendFragment(ArrayList<KV> fragment, Format.Type fmt, String localFSSourceFnamenew, int frag_num, Commande command) {
 
 		try {
-			// Ouverture connexion au serveur numéro id_server
-			Socket s = new Socket(hosts[id_server], ports[id_server]);
+			// Ouverture connexion au serveur numéro id_server = frag_num%nb_servers
+			Socket s = new Socket(Project.HOSTS[frag_num%Project.NB_SERVERS], Project.PORTS[frag_num%Project.NB_SERVERS]);
 			
 			ObjectOutputStream oos = new ObjectOutputStream(s.getOutputStream());
 			ObjectInputStream ois = new ObjectInputStream(s.getInputStream());
@@ -133,12 +145,14 @@ public class HdfsClient {
 			} else { nomType = "LINE";}
 			oos.writeObject(nomType);
 			
-			
 			oos.writeObject(localFSSourceFnamenew);
-			oos.writeObject(i);
-			oos.writeObject(fragment); //fragment est une liste donc object serializable donc pas besoin d'écrire un msg pour indiquer la fin du fragment
+			oos.writeObject(frag_num);
+			oos.writeObject(fragment); 
+			//fragment est une liste donc object serializable donc pas besoin d'écrire 
+			// un msg pour indiquer la fin du fragment
 
-			// Fermeture connexion au serveur n° id_server
+			
+			// Fermeture connexion au serveur
 			ois.close();
 			oos.close();
 			s.close();
@@ -151,95 +165,87 @@ public class HdfsClient {
 		}
     }
     
+    
+    
+    
+    
     public static void HdfsRead(String hdfsFname, String localFSDestFname) { 
     	System.out.println("reponse");
-		try {
-			int frag_num = 0;
-			String reponse = "OK";
-			String fmt = null;
-			Format1 formatOut = null;
     	
-			//Envoi au serveur
-			Socket s = new Socket(hosts[frag_num%nb_server], ports[frag_num%nb_server]);
+		//initiliasation des variables utilisées
+		int frag_num = 0;
+		String reponse = "OK";
+		String fmt = null;
+		Format1 formatOut = null;
 
-			ObjectOutputStream oos = new ObjectOutputStream(s.getOutputStream());
-			ObjectInputStream ois = new ObjectInputStream(s.getInputStream());
-			
-			oos.writeObject(Commande.CMD_READ);
-			oos.writeObject(hdfsFname);
-			oos.writeObject(frag_num);
-			
-			reponse = (String) ois.readObject();
-			if (reponse.equals("OK")) {
-				fmt = (String)ois.readObject();
-				
-				switch (fmt){
-		    	case "KV" :
-		    		formatOut = new KVFormat(hdfsFname+"new");
-		    		break;
-		    	case "LINE" :
-		    		formatOut = new LineFormat(hdfsFname+"new");
-		    		break;
-		    	default :
-		    		System.out.println("format non connu.");
-				}
-				formatOut.open(OpenMode.W);
-				ArrayList<KV> fragment = (ArrayList<KV>) ois.readObject();
-				for (KV elt : fragment) {
-					formatOut.write(elt);
-				}
-			
-			} else {
-				System.out.println("Problème.");
-				return;
-			}
-			s.close();
-			ois.close();
-			oos.close();
-    	
-			frag_num++;
-				// Tant que le serveur trouve
+		try {
+			// Tant que le serveur trouve
 			while (reponse.equals("OK")) {
-				
+
 				//Envoi au serveur
-				s = new Socket(hosts[frag_num%nb_server], ports[frag_num%nb_server]);
 				
-				oos = new ObjectOutputStream(s.getOutputStream());
-				ois = new ObjectInputStream(s.getInputStream());
-				
+				//Ouvertre de la connexion au serveur n° frag_num%nb_servers
+				Socket s = new Socket(Project.HOSTS[frag_num%Project.NB_SERVERS], Project.PORTS[frag_num%Project.NB_SERVERS]);
+
+				ObjectOutputStream oos = new ObjectOutputStream(s.getOutputStream());
+				ObjectInputStream ois = new ObjectInputStream(s.getInputStream());
+			
+				//Ecriture sur le serveur
 				oos.writeObject(Commande.CMD_READ);
 				oos.writeObject(hdfsFname);
 				oos.writeObject(frag_num);
-						
+				
+				//Lecture
 				reponse = (String) ois.readObject();
 				
-				
-				if (reponse.equals("OK")) {
-					// On récupère le fragment
-					fmt = (String)ois.readObject();
-					ArrayList<KV> fragment = (ArrayList<KV>) ois.readObject();
-
-					//on reecrit le fragment
-					for (KV elt : fragment) {
-						formatOut.write(elt);
+				//Si c'est le premier fragment on vérifie que le premier serveur connait bien le fichier
+				if (frag_num == 0) {
+					if (!(reponse.equals("OK"))){
+						System.out.println(reponse);
 					}
 				}
 				
+				//Si le serveur trouve le fragment
+				if (reponse.equals("OK")) {
+					
+					//On récupère le format
+					fmt = (String)ois.readObject();
+					
+					// Si c'est le premier fragment on crée le fichier du bon format et on l'ouvre
+					if (frag_num == 0) {
+						Format.Type type = null;
+						if (fmt.equals("LINE")) type = Format1.Type.LINE;
+		                else if(fmt.equals("KV")) type = Format1.Type.KV;
+						
+						formatOut = CreerFormat(hdfsFname+"new", type);
+						formatOut.open(OpenMode.W);
+					}
+					
+					//On récupère une liste de KV qu'on écrit dans le fichier kv par kv
+					ArrayList<KV> fragment = (ArrayList<KV>) ois.readObject();
+					for (KV elt : fragment) {
+						formatOut.write(elt);
+					}
+					
+					//On passe au fragment suivant
+					frag_num++;
+				
+				} else {
+					//C'est la fin de la transmission
+					System.out.println("Fin de la transmission du fichier.");
+				}
+				
+				s.close();
 				ois.close();
 				oos.close();
-				//s.close();
-				
-				frag_num++;
 			}
-			formatOut.close();
 			
-			System.out.println("Fin de la transmission du fichier.");
-			
-		} catch (IOException e) {
-			e.printStackTrace();
-		} catch (ClassNotFoundException e) {
+		} catch (IOException | ClassNotFoundException | FormatNonConformeException e) {
 			e.printStackTrace();
 		}
+		
+		//on ferme le fichier
+		formatOut.close();
     }
     
   
@@ -256,13 +262,13 @@ public class HdfsClient {
               case "delete": HdfsDelete(args[1]); break;
               case "write": 
                 Format1.Type fmt;
-                if (args.length<3) {usage(); return;}
+                if (args.length != 3) {usage(); return;}
                 if (args[1].equals("line")) fmt = Format1.Type.LINE;
                 else if(args[1].equals("kv")) fmt = Format1.Type.KV;
                 else {usage(); return;}
-                System.out.println(fmt);
                 HdfsWrite(fmt,args[2],1);
-                
+                break;
+              default : usage();
             }	
         } catch (Exception ex) {
             ex.printStackTrace();
