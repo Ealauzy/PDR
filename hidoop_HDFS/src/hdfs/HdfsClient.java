@@ -216,6 +216,7 @@ public class HdfsClient {
 						Format.Type type = null;
 						if (fmt.equals("LINE")) type = Format1.Type.LINE;
 		                else if(fmt.equals("KV")) type = Format1.Type.KV;
+		                else throw new FormatNonConformeException();
 						
 						formatOut = CreerFormat(hdfsFname+"new", type);
 						formatOut.open(OpenMode.W);
@@ -234,18 +235,17 @@ public class HdfsClient {
 					//C'est la fin de la transmission
 					System.out.println("Fin de la transmission du fichier.");
 				}
-				
+				//Fermeture de la connexion
 				s.close();
 				ois.close();
 				oos.close();
 			}
+		//on ferme le fichier
+		formatOut.close();
 			
 		} catch (IOException | ClassNotFoundException | FormatNonConformeException e) {
 			e.printStackTrace();
 		}
-		
-		//on ferme le fichier
-		formatOut.close();
     }
     
   

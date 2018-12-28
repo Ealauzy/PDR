@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import formats.Commande;
+import formats.Format;
 import formats.Format1;
 import formats.KV;
 import formats.KVFormat;
@@ -20,7 +21,7 @@ import formats.Format.Type;
 
 public class HdfsServer {
 	
-	private static int PORT = 808; //Numéro du Port à changer selon le serveur lancé
+	private static int PORT = 8082; //Numéro du Port à changer selon le serveur lancé
 	private static ObjectOutputStream oos;
 	private static ObjectInputStream ois;
 	private static HashMap<String, HashMap<Integer,Format1>> files;
@@ -61,27 +62,33 @@ public class HdfsServer {
 		 }
 		 files.get(name).put(i, formatOut);
 		 
+		//On ferme le fichier
 		formatOut.close();
-		System.out.println("Fin Write");
+		System.out.println("Fin Write.");
 		
 	}
 	
-	private static void readWithServer() throws IOException, ClassNotFoundException {
+	
+	
+	private static void readWithServer() throws IOException, ClassNotFoundException, FormatNonConformeException {
 
+		//On récupère le nom du fichier et le numéro du fragment
 		String name = (String) ois.readObject();
-		Integer frag_num = (int)ois.readObject();
+		Integer frag_num = (int) ois.readObject();
 		
+		//Si le nom du fichier ou le numéro de fragment ne correspond pas à ceux mémorisés
+		//On le signale
 		if (files.get(name) == null) {
-			System.out.println("Le fichier n'existe pas.");
-			oos.writeObject("Probleme.");
+			oos.writeObject("Le fichier n'existe pas.");
 		} else if (files.get(name).get(frag_num) == null) {
-			System.out.println("Le fragment n'existe pas.");
-			oos.writeObject("Probleme.");
+			oos.writeObject("Le fragment n'existe pas.");
 		} else {
 
+			//Sinon on récupère le fragment et on
 			Format1 in = files.get(name).get(frag_num);
 			in.open(OpenMode.R);
 
+			//On crée une liste de KV à envoyer au Client (ArrayList est Serializable)
 			ArrayList<KV> fragment = new ArrayList <KV>();
 			KV kv = in.read();
 
@@ -90,24 +97,22 @@ public class HdfsServer {
 				kv = in.read();
 			}
 			
+			//On récupère le format du fichier sous la forme d'un string qui pourra être envoyé
+			//(car Format.Type n'est pas serializable
 			String fmt = "";
-			switch (in.getType()){
-	    	case KV :
-	    		fmt = "KV";
-	    		break;
-	    	case LINE :
-	    		fmt = "LINE";
-	    		break;
-	    	default :
-			}
+			if (in.getType()==Format.Type.LINE) fmt = "LINE";
+            else if(in.getType()==Format.Type.KV) fmt = "KV";
+            else throw new FormatNonConformeException();
 			
+			//On envoie "OK" suivit du format et du fragment
 			oos.writeObject("OK");
 			oos.writeObject(fmt);
 			oos.writeObject(fragment);
 			
+			//On ferme le fichier créé
 			in.close();
 			
-			System.out.println("Fin Read");
+			System.out.println("Fin Read.");
 			
 		}
 	}
@@ -115,9 +120,12 @@ public class HdfsServer {
 	
 	private static void deleteWithServer() {
 		
+		//On récupère le nom du fihcier à supprimer
 		String name;
 		try {
 			name = (String)ois.readObject();
+		
+		//Si on a des fragments du fichier en mémoire
 		if (files.containsKey(name)){
 			//On supprime tous les fragments correspondant au fichier de la mémoire
 			for(Map.Entry elt : files.get(name).entrySet()) {
@@ -127,6 +135,7 @@ public class HdfsServer {
 			 files.remove(name);
 		 }
 		else {
+			//Sinon on indique qu'on ne connait pas le fichier
 			System.out.println("Fichier inconnu.");
 		}
 		System.out.println("Fin Delete.");
@@ -166,10 +175,8 @@ public class HdfsServer {
 				oos.close();
 			}
 			
-		} catch (ClassNotFoundException e) {
+		} catch (IOException | ClassNotFoundException | FormatNonConformeException e) {
 			e.printStackTrace();
-		} catch (IOException e) {
-				e.printStackTrace();
 		}
 		
 	}
