@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
+import config.Project;
 import formats.Commande;
 import formats.Format;
 import formats.Format1;
@@ -21,12 +22,12 @@ import formats.Format.Type;
 
 public class HdfsServer {
 	
-	private static int PORT = 8082; //Numéro du Port à changer selon le serveur lancé
+	private static int PORT; //Numéro du Port à changer selon le serveur lancé
 	private static ObjectOutputStream oos;
 	private static ObjectInputStream ois;
 	private static HashMap<String, HashMap<Integer,Format1>> files;
+	
 	public HdfsServer() {
-		
 	}
 	
 	private static void writeWithServer() throws ClassNotFoundException, IOException {
@@ -120,7 +121,7 @@ public class HdfsServer {
 	
 	private static void deleteWithServer() {
 		
-		//On récupère le nom du fihcier à supprimer
+		//On récupère le nom du fichier à supprimer
 		String name;
 		try {
 			name = (String)ois.readObject();
@@ -146,6 +147,8 @@ public class HdfsServer {
 	
 	public static void main(String[] args) {
 		try {
+			PORT = Project.PORTS[Integer.parseInt(args[0])-1];
+			
 			files =  new HashMap<String, HashMap<Integer,Format1>>();
 			//Ouverture connexion
 			ServerSocket ss = new ServerSocket(PORT);

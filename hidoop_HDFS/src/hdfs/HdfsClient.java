@@ -1,9 +1,11 @@
 package hdfs;
+import java.io.File;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.Map;
 
 import config.Project;
 import formats.Commande;
@@ -31,6 +33,13 @@ public class HdfsClient {
         System.out.println("Usage: java HdfsClient write <line|kv> <file>");
         System.out.println("Usage: java HdfsClient delete <file>");
     }
+    
+    
+    private static void delete(String name) {
+		new File(name).delete();
+	}
+    
+    
     
     private static Format1 CreerFormat (String fname, Format.Type fmt) throws FormatNonConformeException{
     	Format1 fichier = null;
@@ -122,6 +131,7 @@ public class HdfsClient {
 		
 		//Fermeture du fichier une fois lecture finie
 		in.close();
+		delete(localFSSourceFname);
     }
 
     
@@ -218,7 +228,8 @@ public class HdfsClient {
 		                else if(fmt.equals("KV")) type = Format1.Type.KV;
 		                else throw new FormatNonConformeException();
 						
-						formatOut = CreerFormat(hdfsFname+"new", type);
+						//formatOut = CreerFormat(hdfsFname+"new", type);
+						formatOut = CreerFormat(hdfsFname, type);
 						formatOut.open(OpenMode.W);
 					}
 					

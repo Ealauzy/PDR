@@ -69,6 +69,7 @@ public abstract class AbstractFormat implements Format1 {
 			try {
 				this.ecriture.close();
 				this.etat = TypeEtat.Close;
+				System.out.println("Fichier fermé.");
 			} catch (IOException e) {
 				System.out.println("Fichier " + this.fname + "est fermé.");
 			}
@@ -78,6 +79,7 @@ public abstract class AbstractFormat implements Format1 {
 				this.lecture.close();
 				this.etat = TypeEtat.Close;
 				this.index = 0;
+				System.out.println("Fichier fermé.");
 			} catch (IOException e) {
 				System.out.println("Fichier " + this.fname + "est fermé.");
 			}
@@ -107,6 +109,10 @@ public abstract class AbstractFormat implements Format1 {
 	
 	public void writeFormatLigne(String ligne) throws IOException {
 		this.ecriture.write(ligne + "\n");
+	}
+	
+	public TypeEtat getEtat(){
+		return this.etat;
 	}
 
 }
