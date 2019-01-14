@@ -20,18 +20,17 @@ import formats.LineFormat;
 import formats.Format.OpenMode;
 import formats.Format.Type;
 
-public class HdfsServer  implements Runnable{
+public class HdfsServer {
 	
-	private int PORT; //Numéro du Port à changer selon le serveur lancé
-	private ObjectOutputStream oos;
-	private ObjectInputStream ois;
-	private HashMap<String, HashMap<Integer,Format1>> files;
+	private static int PORT; //Numéro du Port à changer selon le serveur lancé
+	private static ObjectOutputStream oos;
+	private static ObjectInputStream ois;
+	private static HashMap<String, HashMap<Integer,Format1>> files;
 	
-	public HdfsServer(int i) {
-		PORT = Project.PORTS[i];
+	public HdfsServer() {
 	}
 	
-	private  void writeWithServer() throws ClassNotFoundException, IOException {
+	private static void writeWithServer() throws ClassNotFoundException, IOException {
 		
 		
 		//Récupérer le type envoyé, le nom du fichier et le fragment.
@@ -72,7 +71,7 @@ public class HdfsServer  implements Runnable{
 	
 	
 	
-	private void readWithServer() throws IOException, ClassNotFoundException, FormatNonConformeException {
+	private static void readWithServer() throws IOException, ClassNotFoundException, FormatNonConformeException {
 
 		//On récupère le nom du fichier et le numéro du fragment
 		String name = (String) ois.readObject();
@@ -120,7 +119,7 @@ public class HdfsServer  implements Runnable{
 	}
 	
 	
-	private void deleteWithServer() {
+	private static void deleteWithServer() {
 		
 		//On récupère le nom du fichier à supprimer
 		String name;
@@ -146,8 +145,10 @@ public class HdfsServer  implements Runnable{
 		}
 	}
 	
-	public void run() {
+	public static void main(String[] args) {
 		try {
+			System.out.println("ouvert");
+			PORT = Project.PORTS[Integer.parseInt(args[0])-1];
 			
 			files =  new HashMap<String, HashMap<Integer,Format1>>();
 			//Ouverture connexion
